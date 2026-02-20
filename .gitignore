@@ -1,0 +1,13 @@
+settings.toml
+
+__pycache__/
+
+# Tests
+.tox/
+
+# Distribution / packaging
+.eggs/
+*.egg-info/
+
+# Environments
+venv/
