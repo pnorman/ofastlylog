@@ -56,17 +56,16 @@ def create_table(raster: Annotated[list[str], typer.Option()] = [],
             if "base" in nominatim:
                 service.create_base_table()
             if "success" in nominatim:
-                raise NotImplementedError("Nominatim success table not implemented yet")
-                # service.create_success_table()
+                service.create_success_table()
 
 @process_app.command()
 def hourly(raster: Annotated[list[str], typer.Option()] = [],
-                   vector: Annotated[list[str], typer.Option()] = [],
-                   date: datetime.datetime = (datetime.datetime.now(datetime.timezone.utc) -
-                       datetime.timedelta(hours=1)),
-                   hours: int = 1,
-                   region: str = DEFAULT_REGION,
-                   work_group: str = DEFAULT_WORK_GROUP) -> None:
+           vector: Annotated[list[str], typer.Option()] = [],
+           date: datetime.datetime = (datetime.datetime.now(datetime.timezone.utc) -
+                                      datetime.timedelta(hours=1)),
+           hours: int = 1,
+           region: str = DEFAULT_REGION,
+           work_group: str = DEFAULT_WORK_GROUP) -> None:
     service: Service
 
     date = datetime.datetime(date.year, date.month, date.day, date.hour, tzinfo=datetime.timezone.utc)
