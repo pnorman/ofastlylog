@@ -23,6 +23,14 @@ def create_columns_sql(columns: list[Column]) -> str:
     """
     return ",\n".join([f"{c.name} {c.type} COMMENT '{c.comment}'" for c in columns])
 
+def date_condition(date: datetime.datetime) -> str:
+    """
+    Generate a SQL WHERE condition for a specific date
+
+    :param date: Date to generate the condition for
+    :return: SQL condition for the date
+    """
+    return f"year={date.year} AND month={date.month} AND day={date.day} AND hour={date.hour}"
 
 class Service:
     schema: str = "logs"
@@ -107,7 +115,8 @@ class Service:
             + f"""COMMENT '{self.base_comment}'\n"""
             + f"""PARTITIONED BY (year int, month int, day int, hour int)\n"""
             + f"""ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'\n"""
-            + f"""STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat'\n"""
+            + f"""STORED AS\n"""
+            + f"""INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat'\n"""
             f"""OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'\n"""
             + f"""LOCATION '{self.base_location}'\n"""
             + f"""TBLPROPERTIES (\n"""
@@ -138,21 +147,23 @@ class Service:
             + f"""{create_columns_sql(self.success_columns)})\n"""
             + f"""COMMENT '{self.success_comment}'\n"""
             + f"""PARTITIONED BY (year int, month int, day int, hour int)\n"""
-            + f"""ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'\n"""
-            + f"""STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'\n"""
+            + f"""ROW FORMAT\n"""
+            + f"""SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'\n"""
+            + f"""STORED AS\n"""
+            + f"""INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'\n"""
             f"""OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'\n"""
             + f"""LOCATION '{self.success_location}'\n"""
             + f"""TBLPROPERTIES (\n"""
             + f"""'has_encrypted_data'='false',\n"""
             + f"""'storage.location.template'='{self.success_location}"""
-            + "${year}/${month}/${day}/${hour}/',\n"
+            + "${year}/${month}/${day}/${hour}/',\n" # not a f-string
             + f"""'projection.enabled'='true',\n"""
             + f"""'projection.year.type'='integer',\n"""
             + f"""'projection.year.range'='2025,2040',\n"""
             + f"""'projection.month.type'='integer',\n"""
-            +
-            # INSERT INTO does not work with projection and digits, so we have slightly different locations on S3.
-            f"""'projection.month.range'='1,12',\n"""
+            # INSERT INTO does not work with projection and digits,
+            # so we have slightly different locations on S3.
+            + f"""'projection.month.range'='1,12',\n"""
             + f"""'projection.day.type'='integer',\n"""
             + f"""'projection.day.range'='1,31',\n"""
             + f"""'projection.hour.type'='integer',\n"""
@@ -191,7 +202,7 @@ class Service:
             + ",\n".join(columns)
             + "\n"
             + f"""FROM {self.schema}.{self.base_name}\n"""
-            + f"""WHERE year={date.year} AND month={date.month} AND day={date.day} AND hour={date.hour}\n"""
+            + f"""WHERE {date_condition(date)}\n"""
             + f"""AND {self.success_filter_sql}\n"""
         )
         # ruff: enable[F541]
@@ -205,7 +216,7 @@ class Service:
         with self.connection.cursor() as cursor:
             cursor.execute(
                 f"SELECT 1 FROM {self.schema}.{table}\n"
-                f"WHERE year={date.year} AND month={date.month} AND day={date.day} AND hour={date.hour}\n"
+                f"WHERE {date_condition(date)}\n"
                 "LIMIT 1"
             )
             return len(cursor.fetchall()) > 0
