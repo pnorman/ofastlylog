@@ -7,11 +7,11 @@ import typer
 
 from ofastlylog.services import Service, RasterTileService, VectorTileService, NominatimService
 
-app = typer.Typer()
+app = typer.Typer(help="Work with OpenStreetMap Fastly logs")
 
-tools_app = typer.Typer()
-process_app = typer.Typer()
-app.add_typer(tools_app, name="setup")
+tools_app = typer.Typer(help="Tools for setup and maintenance")
+process_app = typer.Typer(help="Create processed logs")
+app.add_typer(tools_app, name="tools")
 app.add_typer(process_app, name="process")
 
 DEFAULT_REGION = "eu-north-1"
@@ -21,21 +21,21 @@ CURRENT_HOUR_DATE = datetime.datetime(
     datetime.datetime.now(datetime.timezone.utc).month,
     datetime.datetime.now(datetime.timezone.utc).day,
     datetime.datetime.now(datetime.timezone.utc).hour,
-    tzinfo=datetime.timezone.utc
+    tzinfo=datetime.timezone.utc,
 )
 
 # These functions are only ever called once so we don't need to worry about mutable defaults
-# ruff: disable[B006, B008]
+# ruff: disable[B006]
 
 
 # TODO: check that there are no unknown table values in the lists and warn
 # perhaps turn them into a set, remove each from set when processed, and
 # warn if any left?
-@tools_app.command()
+@tools_app.command(help="Create tables for raw and processed logs")
 def create_table(
-    raster: Annotated[list[str], typer.Option()] = [],
-    vector: Annotated[list[str], typer.Option()] = [],
-    nominatim: Annotated[list[str], typer.Option()] = [],
+    raster: Annotated[list[str], typer.Option(help="Raster tables to create")] = [],
+    vector: Annotated[list[str], typer.Option(help="Vector tables to create")] = [],
+    nominatim: Annotated[list[str], typer.Option(help="Nominatim tables to create")] = [],
     region: str = DEFAULT_REGION,
     work_group: str = DEFAULT_WORK_GROUP,
 ) -> None:
@@ -80,12 +80,10 @@ def create_table(
 
 @process_app.command()
 def hourly(
-    raster: Annotated[list[str], typer.Option()] = [],
-    vector: Annotated[list[str], typer.Option()] = [],
-    nominatim: Annotated[list[str], typer.Option()] = [],
-    date: datetime.datetime = (
-        CURRENT_HOUR_DATE - datetime.timedelta(hours=1)
-    ),
+    raster: Annotated[list[str], typer.Option(help="Processed raster table to update")] = [],
+    vector: Annotated[list[str], typer.Option(help="Processed vector table to update")] = [],
+    nominatim: Annotated[list[str], typer.Option(help="Processed nominatim table to update")] = [],
+    date: datetime.datetime = (CURRENT_HOUR_DATE - datetime.timedelta(hours=1)),
     hours: int = 1,
     region: str = DEFAULT_REGION,
     work_group: str = DEFAULT_WORK_GROUP,
@@ -127,4 +125,4 @@ def hourly(
                 service.process_hourly_success(date, hours)
 
 
-# ruff: enable[B006, B008]
+# ruff: enable[B006]
