@@ -36,7 +36,12 @@ local_scheme = "no-local-version"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F"]
+select = ["E", "F", "RUF", "W", "B", "C", "DTZ", "S"]
+# We're building statements with FROM {self.schema}.{table} everywhere.
+# These are safe because the parameters are not user supplied. psycopg3 has
+# the ability to compile SQL statements from multiple objects and escape
+# table names but pyathena lacks this.
+ignore = ["S608"]
 
 [tool.mypy]
 strict = true

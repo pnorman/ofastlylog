@@ -23,6 +23,7 @@ def create_columns_sql(columns: list[Column]) -> str:
     """
     return ",\n".join([f"{c.name} {c.type} COMMENT '{c.comment}'" for c in columns])
 
+
 def date_condition(date: datetime.datetime) -> str:
     """
     Generate a SQL WHERE condition for a specific date
@@ -30,7 +31,20 @@ def date_condition(date: datetime.datetime) -> str:
     :param date: Date to generate the condition for
     :return: SQL condition for the date
     """
-    return f"year={date.year} AND month={date.month} AND day={date.day} AND hour={date.hour}"
+    return "year=%(year)i AND month=%(month)i AND day=%(day)i AND hour=%(hour)i"
+
+
+def date_params(date: datetime.datetime) -> dict[str, int]:
+    """
+    Generate a dict of date parameters to be passed to cursor.execute
+    :param date: Date to generate the parameters for"""
+    return {
+        "year": date.year,
+        "month": date.month,
+        "day": date.day,
+        "hour": date.hour,
+    }
+
 
 class Service:
     schema: str = "logs"
@@ -156,7 +170,7 @@ class Service:
             + f"""TBLPROPERTIES (\n"""
             + f"""'has_encrypted_data'='false',\n"""
             + f"""'storage.location.template'='{self.success_location}"""
-            + "${year}/${month}/${day}/${hour}/',\n" # not a f-string
+            + "${year}/${month}/${day}/${hour}/',\n"  # not a f-string
             + f"""'projection.enabled'='true',\n"""
             + f"""'projection.year.type'='integer',\n"""
             + f"""'projection.year.range'='2025,2040',\n"""
@@ -190,7 +204,7 @@ class Service:
         with self.connection.cursor() as cursor:
             for d in self.get_missing_partitions(self.success_name, date, hours):
                 print(f"Processing {d} for {self.success_name}")
-                cursor.execute(self.process_hourly_success_sql(d))
+                cursor.execute(self.process_hourly_success_sql(d), date_params(d))
 
     def process_hourly_success_sql(self, date: datetime.datetime) -> str:
         columns = [c.success_sql or c.name for c in self.success_columns]
@@ -214,11 +228,14 @@ class Service:
         :return: True if there is data for the hour, False otherwise
         """
         with self.connection.cursor() as cursor:
+            # ruff: disable[F541]
             cursor.execute(
                 f"SELECT 1 FROM {self.schema}.{table}\n"
-                f"WHERE {date_condition(date)}\n"
-                "LIMIT 1"
+                + f"WHERE {date_condition(date)}\n"
+                + f"LIMIT 1",
+                date_params(date),
             )
+            # ruff: enable[F541]
             return len(cursor.fetchall()) > 0
 
     def get_missing_partitions(

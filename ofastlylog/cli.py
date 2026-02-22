@@ -17,6 +17,9 @@ app.add_typer(process_app, name="process")
 DEFAULT_REGION = "eu-north-1"
 DEFAULT_WORK_GROUP = "primary"
 
+# These functions are only ever called once so we don't need to worry about mutable defaults
+# ruff: disable[B006, B008]
+
 
 # TODO: check that there are no unknown table values in the lists and warn
 # perhaps turn them into a set, remove each from set when processed, and
@@ -115,3 +118,6 @@ def hourly(
             service = NominatimService(conn)
             if "success" in nominatim:
                 service.process_hourly_success(date, hours)
+
+
+# ruff: enable[B006, B008]
