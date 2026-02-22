@@ -16,6 +16,13 @@ app.add_typer(process_app, name="process")
 
 DEFAULT_REGION = "eu-north-1"
 DEFAULT_WORK_GROUP = "primary"
+CURRENT_HOUR_DATE = datetime.datetime(
+    datetime.datetime.now(datetime.timezone.utc).year,
+    datetime.datetime.now(datetime.timezone.utc).month,
+    datetime.datetime.now(datetime.timezone.utc).day,
+    datetime.datetime.now(datetime.timezone.utc).hour,
+    tzinfo=datetime.timezone.utc
+)
 
 # These functions are only ever called once so we don't need to worry about mutable defaults
 # ruff: disable[B006, B008]
@@ -77,7 +84,7 @@ def hourly(
     vector: Annotated[list[str], typer.Option()] = [],
     nominatim: Annotated[list[str], typer.Option()] = [],
     date: datetime.datetime = (
-        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+        CURRENT_HOUR_DATE - datetime.timedelta(hours=1)
     ),
     hours: int = 1,
     region: str = DEFAULT_REGION,
