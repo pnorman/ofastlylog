@@ -1,6 +1,6 @@
 import copy
-from dataclasses import dataclass
 import datetime
+from dataclasses import dataclass
 
 import pyathena.connection
 import pyathena.pandas.cursor

@@ -36,7 +36,7 @@ local_scheme = "no-local-version"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "RUF", "W", "B", "C", "DTZ", "S"]
+select = ["E", "F", "RUF", "W", "B", "C", "DTZ", "S", "I"]
 # We're building statements with FROM {self.schema}.{table} everywhere.
 # These are safe because the parameters are not user supplied. psycopg3 has
 # the ability to compile SQL statements from multiple objects and escape
@@ -49,5 +49,6 @@ strict = true
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
     "ruff>=0.15.2",
 ]

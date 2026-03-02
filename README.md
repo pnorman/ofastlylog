@@ -12,14 +12,21 @@ venv/bin/pip install ofastlylog
 venv/bin/ofastlylog --help
 ```
 
+## Contributing
+
+This code is difficult to contribute to unless you have access to the OSMF AWS accounts. Recommendations to improve this are welcome.
+
 Development is done using uv.
 
 ```sh
+git clone https://github.com/pnorman/ofastlylog.git
+cd ofastlylog
 uv sync
+uv run pre-commit install
 uv run ofastlylog --help
 ```
 
-Development could also be done using a venv and pip
+Development could also be done using a venv and pip but this is not officially supported
 
 ```sh
 python3 -m venv venv

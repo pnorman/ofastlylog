@@ -5,7 +5,7 @@ import pyathena
 import pyathena.pandas.cursor
 import typer
 
-from ofastlylog.services import Service, RasterTileService, VectorTileService, NominatimService
+from ofastlylog.services import NominatimService, RasterTileService, Service, VectorTileService
 
 app = typer.Typer(help="Work with OpenStreetMap Fastly logs")
 
