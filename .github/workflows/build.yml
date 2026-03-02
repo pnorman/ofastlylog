@@ -18,7 +18,5 @@ jobs:
         uses: astral-sh/setup-uv@v7
       - name: Install project
         run: uv sync --locked --all-extras --dev
-      - name: Check with ruff
-        run: uv run ruff check
-      - name: check with mypy
-        run: uv run mypy ofastlylog/
+      - name: Run pre-commit hooks
+        run: uv run pre-commit run -a
