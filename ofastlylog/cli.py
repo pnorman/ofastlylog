@@ -5,7 +5,13 @@ import pyathena
 import pyathena.pandas.cursor
 import typer
 
-from ofastlylog.services import NominatimService, RasterTileService, Service, VectorTileService
+from ofastlylog.services import (
+    NominatimService,
+    RasterTileService,
+    Service,
+    VectorTileService,
+    WebsiteService,
+)
 
 app = typer.Typer(help="Work with OpenStreetMap Fastly logs")
 
@@ -32,10 +38,11 @@ CURRENT_HOUR_DATE = datetime.datetime(
 # perhaps turn them into a set, remove each from set when processed, and
 # warn if any left?
 @tools_app.command(help="Create tables for raw and processed logs")
-def create_table(
+def create_table(  # noqa: C901
     raster: Annotated[list[str], typer.Option(help="Raster tables to create")] = [],
     vector: Annotated[list[str], typer.Option(help="Vector tables to create")] = [],
     nominatim: Annotated[list[str], typer.Option(help="Nominatim tables to create")] = [],
+    website: Annotated[list[str], typer.Option(help="Website tables to create")] = [],
     region: str = DEFAULT_REGION,
     work_group: str = DEFAULT_WORK_GROUP,
 ) -> None:
@@ -77,12 +84,25 @@ def create_table(
             if "success" in nominatim:
                 service.create_success_table()
 
+    if website != []:
+        with pyathena.connect(
+            region_name=region,
+            cursor_class=pyathena.pandas.cursor.PandasCursor,
+            work_group=work_group,
+        ) as conn:
+            service = WebsiteService(conn)
+            if "base" in website:
+                service.create_base_table()
+            if "success" in website:
+                service.create_success_table()
+
 
 @process_app.command()
 def hourly(
     raster: Annotated[list[str], typer.Option(help="Processed raster table to update")] = [],
     vector: Annotated[list[str], typer.Option(help="Processed vector table to update")] = [],
     nominatim: Annotated[list[str], typer.Option(help="Processed nominatim table to update")] = [],
+    website: Annotated[list[str], typer.Option(help="Processed website table to update")] = [],
     date: datetime.datetime = (CURRENT_HOUR_DATE - datetime.timedelta(hours=1)),
     hours: int = 1,
     region: str = DEFAULT_REGION,
@@ -122,6 +142,16 @@ def hourly(
         ) as conn:
             service = NominatimService(conn)
             if "success" in nominatim:
+                service.process_hourly_success(date, hours)
+
+    if website != []:
+        with pyathena.connect(
+            region_name=region,
+            cursor_class=pyathena.pandas.cursor.PandasCursor,
+            work_group=work_group,
+        ) as conn:
+            service = WebsiteService(conn)
+            if "success" in website:
                 service.process_hourly_success(date, hours)
 
 
