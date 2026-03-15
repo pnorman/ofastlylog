@@ -17,8 +17,10 @@ class RasterTileService(TileService):
         self.base_name = "fastly_raster_logs_v20"
         self.base_location = "s3://openstreetmap-fastly-raster-logs/tile/v20/"
         self.base_comment = "Fastly logs for tile.openstreetmap.org"
-        self.base_columns += [
-            Column(name="ratelimit", type="tinyint", comment="Rate limiting mode applied")
+        self.base_columns = [
+            *self.base_columns,
+            Column(name="ratelimit", type="tinyint", comment="Rate limiting mode applied"),
+            Column(name="totp", type="string", comment="OSM TOTP auth token"),
         ]
 
         self.success_name = "fastly_raster_success_logs_v4"
@@ -46,6 +48,7 @@ class RasterTileService(TileService):
             ),
             *self.success_columns,
             Column(name="ratelimit", type="tinyint", comment="Rate limiting mode applied"),
+            Column(name="totp", type="string", comment="OSM TOTP auth token"),
         ]
         self.success_filter_sql = (
             self.success_filter_sql + f"AND regexp_like(path, '{tile_regexp}')"
