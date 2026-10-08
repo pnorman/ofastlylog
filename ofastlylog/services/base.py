@@ -46,22 +46,51 @@ def date_params(date: datetime.datetime) -> dict[str, int]:
     }
 
 
+def ymdh_tablestorage(location: str) -> str:
+    """
+    Generate the location and properties for a table with standard partitions
+    """
+    return (
+        f"""LOCATION '{location}'"""
+        + """TBLPROPERTIES (\n"""
+        + """'has_encrypted_data'='false',\n"""
+        + f"""'storage.location.template'='{location}"""  # no newline or comma
+        + """${year}/${month}/${day}/${hour}/',\n"""  # not a f-string because its a s3 template
+        + """'projection.enabled'='true',\n"""
+        + """'projection.year.type'='integer',\n"""
+        + """'projection.year.range'='2025,2040',\n"""
+        + """'projection.month.type'='integer',\n"""
+        + """'projection.month.range'='1,12',\n"""
+        + """'projection.month.digits'='2',\n"""
+        + """'projection.day.type'='integer',\n"""
+        + """'projection.day.range'='1,31',\n"""
+        + """'projection.day.digits'='2',\n"""
+        + """'projection.hour.type'='integer',\n"""
+        + """'projection.hour.range'='0,23',\n"""
+        + """'projection.hour.digits'='2')"""
+    )
+
+
 class Service:
     schema: str = "logs"
     base_name: str
     success_name: str
+    aggregation_name: str
 
     """List of columns to create"""
     base_columns: list[Column]
     success_columns: list[Column]
+    aggregation_columns: list[Column]
 
     """Table comment"""
     base_comment: str
     success_comment: str
+    aggregation_comment: str
 
     """S3 location"""
     base_location: str
     success_location: str
+    aggregation_location: str
 
     success_filter_sql: str = "status IN (200, 206, 304)\n"
 
@@ -120,71 +149,57 @@ class Service:
         with self.connection.cursor() as cursor:
             cursor.execute(self.create_success_table_sql())
 
+    def create_aggregation_table(self) -> None:
+        """
+        Creates the table for aggregated logs from fastly
+        """
+        with self.connection.cursor() as cursor:
+            cursor.execute(self.create_aggregation_table_sql())
+
     def create_base_table_sql(self) -> str:
         # TODO: assert that self.location ends with /
-        # ruff: disable[F541]
         sql = (
             f"""CREATE EXTERNAL TABLE {self.schema}.{self.base_name} (\n"""
             + f"""{create_columns_sql(self.base_columns)})\n"""
             + f"""COMMENT '{self.base_comment}'\n"""
-            + f"""PARTITIONED BY (year int, month int, day int, hour int)\n"""
-            + f"""ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'\n"""
-            + f"""STORED AS\n"""
-            + f"""INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat'\n"""
-            f"""OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'\n"""
-            + f"""LOCATION '{self.base_location}'\n"""
-            + f"""TBLPROPERTIES (\n"""
-            + f"""'has_encrypted_data'='false',\n"""
-            + f"""'storage.location.template'='{self.base_location}"""
-            + "${year}/${month}/${day}/${hour}/',\n"
-            + f"""'projection.enabled'='true',\n"""
-            + f"""'projection.year.type'='integer',\n"""
-            + f"""'projection.year.range'='2025,2040',\n"""
-            + f"""'projection.month.type'='integer',\n"""
-            + f"""'projection.month.range'='1,12',\n"""
-            + f"""'projection.month.digits'='2',\n"""
-            + f"""'projection.day.type'='integer',\n"""
-            + f"""'projection.day.range'='1,31',\n"""
-            + f"""'projection.day.digits'='2',\n"""
-            + f"""'projection.hour.type'='integer',\n"""
-            + f"""'projection.hour.range'='0,23',\n"""
-            + f"""'projection.hour.digits'='2')"""
+            + """PARTITIONED BY (year int, month int, day int, hour int)\n"""
+            + """ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'\n"""
+            + """STORED AS\n"""
+            + """INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat'\n"""
+            + """OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'\n"""
+            + ymdh_tablestorage(self.base_location)
         )
-        # ruff: enable[F541]
         return sql
 
     def create_success_table_sql(self) -> str:
         # TODO: assert that self.location ends with /
-        # ruff: disable[F541]
         sql = (
             f"""CREATE EXTERNAL TABLE {self.schema}.{self.success_name} (\n"""
             + f"""{create_columns_sql(self.success_columns)})\n"""
             + f"""COMMENT '{self.success_comment}'\n"""
-            + f"""PARTITIONED BY (year int, month int, day int, hour int)\n"""
-            + f"""ROW FORMAT\n"""
-            + f"""SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'\n"""
-            + f"""STORED AS\n"""
-            + f"""INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'\n"""
-            f"""OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'\n"""
-            + f"""LOCATION '{self.success_location}'\n"""
-            + f"""TBLPROPERTIES (\n"""
-            + f"""'has_encrypted_data'='false',\n"""
-            + f"""'storage.location.template'='{self.success_location}"""
-            + "${year}/${month}/${day}/${hour}/',\n"  # not a f-string
-            + f"""'projection.enabled'='true',\n"""
-            + f"""'projection.year.type'='integer',\n"""
-            + f"""'projection.year.range'='2025,2040',\n"""
-            + f"""'projection.month.type'='integer',\n"""
-            # INSERT INTO does not work with projection and digits,
-            # so we have slightly different locations on S3.
-            + f"""'projection.month.range'='1,12',\n"""
-            + f"""'projection.day.type'='integer',\n"""
-            + f"""'projection.day.range'='1,31',\n"""
-            + f"""'projection.hour.type'='integer',\n"""
-            + f"""'projection.hour.range'='0,23',\n"""
-            + f"""'parquet.compression'='ZSTD')"""
+            + """PARTITIONED BY (year int, month int, day int, hour int)\n"""
+            + """ROW FORMAT\n"""
+            + """SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'\n"""
+            + """STORED AS\n"""
+            + """INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'\n"""
+            + """OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'\n"""
+            + ymdh_tablestorage(self.success_location)
         )
-        # ruff: enable[F541]
+        return sql
+
+    def create_aggregation_table_sql(self) -> str:
+        sql = (
+            f"""CREATE EXTERNAL TABLE {self.schema}.{self.aggregation_name} (\n"""
+            + f"""{create_columns_sql(self.aggregation_columns)})\n"""
+            + f"""COMMENT '{self.aggregation_comment}'\n"""
+            + """PARTITIONED BY (year int, month int, day int, hour int)\n"""
+            + """ROW FORMAT\n"""
+            + """SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'\n"""
+            + """STORED AS\n"""
+            + """INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'\n"""
+            + """OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'\n"""
+            + ymdh_tablestorage(self.aggregation_location)
+        )
         return sql
 
     def process_hourly_success(self, date: datetime.datetime, hours: int) -> None:
@@ -209,17 +224,15 @@ class Service:
     def process_hourly_success_sql(self, date: datetime.datetime) -> str:
         columns = [c.success_sql or c.name for c in self.success_columns]
         columns += ["year", "month", "day", "hour"]
-        # ruff: disable[F541]
         return (
             f"""INSERT INTO {self.schema}.{self.success_name}\n"""
-            + f"""SELECT\n"""
+            + """SELECT\n"""
             + ",\n".join(columns)
             + "\n"
             + f"""FROM {self.schema}.{self.base_name}\n"""
             + f"""WHERE {date_condition(date)}\n"""
             + f"""AND {self.success_filter_sql}\n"""
         )
-        # ruff: enable[F541]
 
     def check_hour(self, table: str, date: datetime.datetime) -> bool:
         """
@@ -228,14 +241,12 @@ class Service:
         :return: True if there is data for the hour, False otherwise
         """
         with self.connection.cursor() as cursor:
-            # ruff: disable[F541]
             cursor.execute(
                 f"SELECT 1 FROM {self.schema}.{table}\n"
                 + f"WHERE {date_condition(date)}\n"
-                + f"LIMIT 1",
+                + "LIMIT 1",
                 date_params(date),
             )
-            # ruff: enable[F541]
             return len(cursor.fetchall()) > 0
 
     def get_missing_partitions(
