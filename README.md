@@ -67,11 +67,11 @@ Perform log processing intended to be run hourly
 
 ## Table types
 
-|   Table     | `--tile` | `--vector` | `--nominatim` |
-|------------:|----------|------------|---------------|
-| `base`      |        ✓ |          ✓ |             ✓ |
-| `success`   |        ✓ |          ✓ |             ✓ |
-| `minimized` | Not implemented | not impelemented | not impelemented |
+|   Table       | `--tile` | `--vector` | `--nominatim` | `--website` |
+|--------------:|----------|------------|---------------|-------------|
+| `base`        |        ✓ |          ✓ |             ✓ |           ✓ |
+| `success`     |        ✓ |          ✓ |             ✓ |           ✓ |
+| `aggregation` |        ✓ |          ✓ | not impelemented | not impelemented |
 
 ## Architecture
 
