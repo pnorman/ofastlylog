@@ -1,4 +1,3 @@
-import copy
 import datetime
 from dataclasses import dataclass
 
@@ -8,10 +7,18 @@ import pyathena.pandas.cursor
 
 @dataclass(frozen=True)
 class Column:
+    """Represents a column in a table"""
+
+    """Name of the column"""
     name: str
+    """SQL Type of the column"""
     type: str
+    """SQL COMMENT describing the column"""
     comment: str | None = None
-    success_sql: str | None = None
+    """SQL to generate the value in the table from the previous table
+
+    Optional. If not provided the column is assumed to be the same in the success and base tables"""
+    generation_sql: str | None = None
 
 
 def create_columns_sql(columns: list[Column]) -> str:
@@ -61,13 +68,10 @@ def ymdh_tablestorage(location: str) -> str:
         + """'projection.year.range'='2025,2040',\n"""
         + """'projection.month.type'='integer',\n"""
         + """'projection.month.range'='1,12',\n"""
-        + """'projection.month.digits'='2',\n"""
         + """'projection.day.type'='integer',\n"""
         + """'projection.day.range'='1,31',\n"""
-        + """'projection.day.digits'='2',\n"""
         + """'projection.hour.type'='integer',\n"""
-        + """'projection.hour.range'='0,23',\n"""
-        + """'projection.hour.digits'='2')"""
+        + """'projection.hour.range'='0,23')"""
     )
 
 
@@ -98,17 +102,13 @@ class Service:
         self, connection: pyathena.connection.Connection[pyathena.pandas.cursor.PandasCursor]
     ) -> None:
         self.connection = connection
-        # These columns are common to all success tables
-        self.success_columns = [
-            Column(name="time_m", type="int", comment="Minutes for start of request"),
-            Column(name="time_s", type="float", comment="Seconds for start of request"),
-            Column(name="ip", type="string", comment="Client IP address"),
-            Column(name="host", type="string", comment="Server hostname"),
+        # These columns are common to all aggregation tables
+        # They are not request specific (e.g. no ttfb) but may be device specific
+        # (e.g. ua, ja4)
+        # There's also coarse-level information about the location (pop, country, tz)
+        common_columns = [
             Column(name="status", type="smallint", comment="Response HTTP Status"),
             Column(name="hit", type="boolean", comment="Cache hit?"),
-            Column(name="size", type="int", comment="Response body size in bytes"),
-            Column(name="ttfb", type="float", comment="Time to first byte in seconds"),
-            Column(name="backend", type="string", comment="Backend server for response"),
             Column(name="referer", type="string", comment="HTTP Referer Header"),
             Column(name="useragent", type="string", comment="HTTP User-Agent Header"),
             Column(name="s_ch", type="string", comment="HTTP Sec-CH-UA Header"),
@@ -117,23 +117,66 @@ class Service:
             Column(name="reqwith", type="string", comment="HTTP X-Requested-With Header"),
             Column(name="accept", type="string", comment="HTTP Accept Header"),
             Column(name="acceptlanguage", type="string", comment="HTTP Accept-Language Header"),
-            Column(name="reqs", type="string", comment="Number of requests in HTTP connection"),
             Column(name="sigsci", type="string", comment="NGWAF signals"),
-            Column(name="ja4t", type="string", comment="JA4T fingerprint"),
             Column(name="ja4", type="string", comment="JA4 fingerprint"),
-            Column(name="ja4l", type="string", comment="JA4L fingerprint"),
             Column(name="ja4h", type="string", comment="JA4H fingerprint"),
             Column(name="asn", type="int", comment="Client ASN"),
             Column(name="pop", type="string", comment="Fastly POP"),
             Column(name="country", type="string", comment="Client country"),
+            Column(name="ja4t", type="string", comment="JA4T fingerprint"),
             Column(name="tz", type="int", comment="Client timezone offset"),
+            Column(name="host", type="string", comment="Server hostname"),
+        ]
+
+        # The success table contains additional per-request columns plus
+        # all the columns above.
+        self.success_columns = [
+            Column(name="time_m", type="int", comment="Minutes for start of request"),
+            Column(name="time_s", type="float", comment="Seconds for start of request"),
+            Column(name="ip", type="string", comment="Client IP address"),
+            Column(name="size", type="int", comment="Response body size in bytes"),
+            Column(name="ttfb", type="float", comment="Time to first byte in seconds"),
+            Column(name="reqs", type="string", comment="Number of requests in HTTP connection"),
+            Column(name="ja4l", type="string", comment="JA4L fingerprint"),
+            Column(name="backend", type="string", comment="Backend server for response"),
+            *common_columns,
+        ]
+
+        self.aggregation_columns = [
+            Column(
+                name="requests",
+                type="bigint",
+                comment="Number of requests",
+                generation_sql="COUNT(*)",
+            ),
+            Column(
+                name="distinct_ips",
+                type="bigint",
+                comment="Number of distinct IPs",
+                generation_sql="COUNT(DISTINCT ip)",
+            ),
+            Column(
+                name="size",
+                type="bigint",
+                comment="Total body size",
+                generation_sql="SUM(size)",
+            ),
+            Column(
+                name="ttfb",
+                type="float",
+                comment="Total time waiting for first bytes",
+                generation_sql="SUM(ttfb)",
+            ),
+            *common_columns,
         ]
 
         # The common columns in the success table also need to be in the base table
-        self.base_columns = copy.deepcopy(self.success_columns)
         # The success table may convert the path into some other form, e.g. x, y, z for tiles
         # so we only put it in the base table
-        self.base_columns += [Column(name="path", type="string", comment="Path requested")]
+        self.base_columns = [
+            Column(name="path", type="string", comment="Path requested"),
+            *self.success_columns,
+        ]
 
     def create_base_table(self) -> None:
         """
@@ -167,7 +210,26 @@ class Service:
             + """STORED AS\n"""
             + """INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat'\n"""
             + """OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'\n"""
-            + ymdh_tablestorage(self.base_location)
+            f"""LOCATION '{self.base_location}'\n"""
+            + """TBLPROPERTIES (\n"""
+            + """'has_encrypted_data'='false',\n"""
+            + f"""'storage.location.template'='{self.base_location}"""  # no newline or comma
+            + """${year}/${month}/${day}/${hour}/',\n"""  # not a f-string because its a s3 template
+            # This is subtly different from ymdh_tablestorage because it specifies digits.
+            # If the digits are set for the other tables Athena will not be able to
+            # INSERT INTO them if the parition is new.
+            + """'projection.enabled'='true',\n"""
+            + """'projection.year.type'='integer',\n"""
+            + """'projection.year.range'='2025,2040',\n"""
+            + """'projection.month.type'='integer',\n"""
+            + """'projection.month.range'='1,12',\n"""
+            + """'projection.month.digits'='2',\n"""
+            + """'projection.day.type'='integer',\n"""
+            + """'projection.day.range'='1,31',\n"""
+            + """'projection.day.digits'='2',\n"""
+            + """'projection.hour.type'='integer',\n"""
+            + """'projection.hour.range'='0,23',\n"""
+            + """'projection.hour.digits'='2')"""
         )
         return sql
 
@@ -209,7 +271,8 @@ class Service:
         if not self.check_hour(self.base_name, date + datetime.timedelta(hours=1)):
             raise ValueError(
                 f"No data more recent than {date + datetime.timedelta(hours=1)} has arrived."
-                + "The previous hour cannot be processed until the next hour's data starts."
+                + "The previous hour cannot be processed into success tables until the next "
+                + "hour's data starts."
             )
 
         missing = self.get_missing_partitions(self.success_name, date, hours)
@@ -217,12 +280,37 @@ class Service:
             print(f"All data for the last {hours} hours is already processed")
             return
         with self.connection.cursor() as cursor:
+            # TODO: Reuse variable above.
             for d in self.get_missing_partitions(self.success_name, date, hours):
                 print(f"Processing {d} for {self.success_name}")
                 cursor.execute(self.process_hourly_success_sql(d), date_params(d))
 
+    def process_hourly_aggregation(self, date: datetime.datetime, hours: int) -> None:
+        """
+        Process the logs for a given hour and write to the aggregation table
+        """
+        # No check is required for the next hour because under normal conditions
+        # the success table will either be populated or not, not partially like
+        # the base table can be.
+
+        missing = self.get_missing_partitions(self.aggregation_name, date, hours)
+        if missing == []:
+            print(f"All data for the last {hours} hours is already aggregated")
+            return
+        with self.connection.cursor() as cursor:
+            # TODO: Reuse variable above.
+            for d in self.get_missing_partitions(self.aggregation_name, date, hours):
+                print(f"Processing {d} for {self.aggregation_name}")
+                cursor.execute(self.process_hourly_aggregation_sql(d), date_params(d))
+
     def process_hourly_success_sql(self, date: datetime.datetime) -> str:
-        columns = [c.success_sql or c.name for c in self.success_columns]
+        columns: list[str] = []
+        for col in self.success_columns:
+            if col.generation_sql is not None:
+                columns.append(f'''{col.generation_sql} AS "{col.name}"''')
+            else:
+                columns.append(f"{col.name}")
+
         columns += ["year", "month", "day", "hour"]
         return (
             f"""INSERT INTO {self.schema}.{self.success_name}\n"""
@@ -232,6 +320,34 @@ class Service:
             + f"""FROM {self.schema}.{self.base_name}\n"""
             + f"""WHERE {date_condition(date)}\n"""
             + f"""AND {self.success_filter_sql}\n"""
+        )
+
+    def process_hourly_aggregation_sql(self, date: datetime.datetime) -> str:
+        columns: list[str] = []
+        group_columns: list[str] = []
+        for col in self.aggregation_columns:
+            if col.generation_sql is not None:
+                columns.append(f'''{col.generation_sql} AS "{col.name}"''')
+            else:
+                columns.append(f"{col.name}")
+                group_columns.append(f"{col.name}")
+
+        columns += ["year", "month", "day", "hour"]
+        group_columns += ["year", "month", "day", "hour"]
+
+        return (
+            f"""INSERT INTO {self.schema}.{self.aggregation_name}\n"""
+            + """SELECT\n"""
+            + ",\n".join(columns)
+            + "\n"
+            + f"""FROM {self.schema}.{self.success_name}\n"""
+            + f"""WHERE {date_condition(date)}\n"""
+            # This GROUP BY has a hidden requirement. If the data
+            # matching the WHERE clause is too large, Athena will
+            # fail with resource limits.
+            # TODO: Add a way to work around this
+            + """GROUP BY\n"""
+            + ",\n".join(group_columns)
         )
 
     def check_hour(self, table: str, date: datetime.datetime) -> bool:

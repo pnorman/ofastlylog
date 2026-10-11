@@ -59,6 +59,8 @@ def create_table(  # noqa: C901
                 service.create_base_table()
             if "success" in raster:
                 service.create_success_table()
+            if "aggregation" in raster:
+                service.create_aggregation_table()
 
     if vector != []:
         with pyathena.connect(
@@ -71,6 +73,8 @@ def create_table(  # noqa: C901
                 service.create_base_table()
             if "success" in vector:
                 service.create_success_table()
+            if "aggregation" in vector:
+                service.create_aggregation_table()
 
     if nominatim != []:
         with pyathena.connect(
@@ -98,7 +102,7 @@ def create_table(  # noqa: C901
 
 
 @process_app.command()
-def hourly(
+def hourly(  # noqa: C901
     raster: Annotated[list[str], typer.Option(help="Processed raster table to update")] = [],
     vector: Annotated[list[str], typer.Option(help="Processed vector table to update")] = [],
     nominatim: Annotated[list[str], typer.Option(help="Processed nominatim table to update")] = [],
@@ -113,7 +117,10 @@ def hourly(
     date = datetime.datetime(
         date.year, date.month, date.day, date.hour, tzinfo=datetime.timezone.utc
     )
-    print(f"Starting generation at {date} and checking {hours} hours for required processing")
+    print(
+        f"Starting generation at {date} and checking {hours} hours "
+        + "backwards for required processing"
+    )
     if raster != []:
         with pyathena.connect(
             region_name=region,
@@ -123,6 +130,8 @@ def hourly(
             service = RasterTileService(conn)
             if "success" in raster:
                 service.process_hourly_success(date, hours)
+            if "aggregation" in raster:
+                service.process_hourly_aggregation(date, hours)
 
     if vector != []:
         with pyathena.connect(
@@ -133,6 +142,8 @@ def hourly(
             service = VectorTileService(conn)
             if "success" in vector:
                 service.process_hourly_success(date, hours)
+            if "aggregation" in vector:
+                service.process_hourly_aggregation(date, hours)
 
     if nominatim != []:
         with pyathena.connect(

@@ -32,27 +32,41 @@ class RasterTileService(TileService):
                 name="z",
                 type="tinyint",
                 comment="Zoom level of tile",
-                success_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 1) AS integer) AS z",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 1) AS integer)",
             ),
             Column(
                 name="x",
                 type="integer",
                 comment="x of tile",
-                success_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 2) AS integer) AS x",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 2) AS integer)",
             ),
             Column(
                 name="y",
                 type="integer",
                 comment="y of tile",
-                success_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 3) AS integer) AS y",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 3) AS integer)",
             ),
             *self.success_columns,
             Column(name="ratelimit", type="tinyint", comment="Rate limiting mode applied"),
             Column(name="totp", type="string", comment="OSM TOTP auth token"),
         ]
-        self.success_filter_sql = (
-            self.success_filter_sql + f"AND regexp_like(path, '{tile_regexp}')"
+        self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}\n')"
+
+        self.aggregation_name = "fastly_raster_aggregated_logs_v1"
+        self.aggregation_location = (
+            "s3://openstreetmap-fastly-raster-aggregated-logs/aggregated/v1/"
         )
+        self.aggregation_comment = "Aggregated logs for raster.openstreetmap.org"
+
+        # TODO: This could be moved to the TileService base class
+        self.aggregation_columns = [
+            Column(
+                name="z",
+                type="tinyint",
+                comment="Zoom level of tile",
+            ),
+            *self.aggregation_columns,
+        ]
 
 
 class VectorTileService(TileService):
@@ -66,6 +80,7 @@ class VectorTileService(TileService):
         self.success_name = "fastly_vector_success_logs_v2"
         self.success_location = "s3://openstreetmap-fastly-vector-processed-logs/vector/v2/"
         self.success_comment = "Fastly logs for vector.openstreetmap.org successful requests"
+        # Match the format /tileset/z/x/y.foo and cap z, x, y to sane ranges
         tile_regexp = r"^/([^/]+)/(\d{1,2})/(\d{1,6})/(\d{1,6})"
         self.success_columns = [
             # These differ from raster tiles because we serve multiple tilesets
@@ -73,28 +88,47 @@ class VectorTileService(TileService):
                 name="tileset",
                 type="string",
                 comment="Tileset served",
-                success_sql=f"regexp_extract(path, '{tile_regexp}', 1) AS tileset",
+                generation_sql=f"regexp_extract(path, '{tile_regexp}', 1)",
             ),
             Column(
                 name="z",
                 type="tinyint",
                 comment="Zoom level of tile",
-                success_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 2) AS integer) AS z",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 2) AS integer)",
             ),
             Column(
                 name="x",
                 type="integer",
                 comment="x of tile",
-                success_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 3) AS integer) AS x",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 3) AS integer)",
             ),
             Column(
                 name="y",
                 type="integer",
                 comment="y of tile",
-                success_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 4) AS integer) AS y",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 4) AS integer)",
             ),
             *self.success_columns,
         ]
-        self.success_filter_sql = (
-            self.success_filter_sql + f"AND regexp_like(path, '{tile_regexp}')"
+        self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}\n')"
+
+        self.aggregation_name = "fastly_vector_aggregated_logs_v1"
+        self.aggregation_location = (
+            "s3://openstreetmap-fastly-vector-aggregated-logs/aggregated/v1/"
         )
+        self.aggregation_comment = "Aggregated logs for vector.openstreetmap.org"
+
+        # TODO: This could be moved to the TileService base class except for the tileset column
+        self.aggregation_columns = [
+            Column(
+                name="tileset",
+                type="string",
+                comment="Tileset served",
+            ),
+            Column(
+                name="z",
+                type="tinyint",
+                comment="Zoom level of tile",
+            ),
+            *self.aggregation_columns,
+        ]
