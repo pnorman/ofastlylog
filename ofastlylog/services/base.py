@@ -304,18 +304,28 @@ class Service:
                 cursor.execute(self.process_hourly_aggregation_sql(d), date_params(d))
 
     def process_hourly_success_sql(self, date: datetime.datetime) -> str:
-        columns: list[str] = []
+        select_columns: list[str] = []
         for col in self.success_columns:
             if col.generation_sql is not None:
-                columns.append(f'''{col.generation_sql} AS "{col.name}"''')
+                select_columns.append(f'''{col.generation_sql} AS "{col.name}"''')
             else:
-                columns.append(f"{col.name}")
+                select_columns.append(f"{col.name}")
 
-        columns += ["year", "month", "day", "hour"]
+        select_columns += ["year", "month", "day", "hour"]
+
+        insert_columns = [col.name for col in self.success_columns] + [
+            "year",
+            "month",
+            "day",
+            "hour",
+        ]
         return (
             f"""INSERT INTO {self.schema}.{self.success_name}\n"""
+            + "(\n"
+            + ",\n".join(insert_columns)
+            + "\n)\n"
             + """SELECT\n"""
-            + ",\n".join(columns)
+            + ",\n".join(select_columns)
             + "\n"
             + f"""FROM {self.schema}.{self.base_name}\n"""
             + f"""WHERE {date_condition(date)}\n"""

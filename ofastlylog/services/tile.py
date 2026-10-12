@@ -32,7 +32,7 @@ class RasterTileService(TileService):
                 name="z",
                 type="tinyint",
                 comment="Zoom level of tile",
-                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 1) AS integer)",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 1) AS tinyint)",
             ),
             Column(
                 name="x",
