@@ -94,7 +94,7 @@ class VectorTileService(TileService):
                 name="z",
                 type="tinyint",
                 comment="Zoom level of tile",
-                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 2) AS integer)",
+                generation_sql=f"CAST(regexp_extract(path, '{tile_regexp}', 2) AS tinyint)",
             ),
             Column(
                 name="x",
