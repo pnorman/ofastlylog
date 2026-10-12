@@ -345,8 +345,18 @@ class Service:
         columns += ["year", "month", "day", "hour"]
         group_columns += ["year", "month", "day", "hour"]
 
+        insert_columns = [col.name for col in self.aggregation_columns] + [
+            "year",
+            "month",
+            "day",
+            "hour",
+        ]
+
         return (
             f"""INSERT INTO {self.schema}.{self.aggregation_name}\n"""
+            + "(\n"
+            + ",\n".join(insert_columns)
+            + "\n)\n"
             + """SELECT\n"""
             + ",\n".join(columns)
             + "\n"
