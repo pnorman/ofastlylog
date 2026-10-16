@@ -61,6 +61,8 @@ def create_table(  # noqa: C901
                 service.create_success_table()
             if "aggregation" in raster:
                 service.create_aggregation_table()
+            if "location" in raster:
+                service.create_location_table()
 
     if vector != []:
         with pyathena.connect(
@@ -75,6 +77,8 @@ def create_table(  # noqa: C901
                 service.create_success_table()
             if "aggregation" in vector:
                 service.create_aggregation_table()
+            if "location" in vector:
+                service.create_location_table()
 
     if nominatim != []:
         with pyathena.connect(
@@ -132,6 +136,8 @@ def hourly(  # noqa: C901
                 service.process_hourly_success(date, hours)
             if "aggregation" in raster:
                 service.process_hourly_aggregation(date, hours)
+            if "location" in raster:
+                service.process_hourly_location(date, hours)
 
     if vector != []:
         with pyathena.connect(
@@ -144,6 +150,8 @@ def hourly(  # noqa: C901
                 service.process_hourly_success(date, hours)
             if "aggregation" in vector:
                 service.process_hourly_aggregation(date, hours)
+            if "location" in vector:
+                service.process_hourly_location(date, hours)
 
     if nominatim != []:
         with pyathena.connect(
