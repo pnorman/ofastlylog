@@ -59,8 +59,8 @@ def create_table(  # noqa: C901
                 service.create_base_table()
             if "success" in raster:
                 service.create_success_table()
-            if "aggregation" in raster:
-                service.create_aggregation_table()
+            if "aggregated" in raster:
+                service.create_aggregated_table()
             if "location" in raster:
                 service.create_location_table()
 
@@ -75,8 +75,8 @@ def create_table(  # noqa: C901
                 service.create_base_table()
             if "success" in vector:
                 service.create_success_table()
-            if "aggregation" in vector:
-                service.create_aggregation_table()
+            if "aggregated" in vector:
+                service.create_aggregated_table()
             if "location" in vector:
                 service.create_location_table()
 
@@ -134,8 +134,8 @@ def hourly(  # noqa: C901
             service = RasterTileService(conn)
             if "success" in raster:
                 service.process_hourly_success(date, hours)
-            if "aggregation" in raster:
-                service.process_hourly_aggregation(date, hours)
+            if "aggregated" in raster:
+                service.process_hourly_aggregated(date, hours)
             if "location" in raster:
                 service.process_hourly_location(date, hours)
 
@@ -148,8 +148,8 @@ def hourly(  # noqa: C901
             service = VectorTileService(conn)
             if "success" in vector:
                 service.process_hourly_success(date, hours)
-            if "aggregation" in vector:
-                service.process_hourly_aggregation(date, hours)
+            if "aggregated" in vector:
+                service.process_hourly_aggregated(date, hours)
             if "location" in vector:
                 service.process_hourly_location(date, hours)
 

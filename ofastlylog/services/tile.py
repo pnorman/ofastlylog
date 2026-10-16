@@ -28,9 +28,9 @@ class TileService(Service):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         super().__init__(*args, **kwargs)
 
-        self.aggregation_columns = [
+        self.aggregated_columns = [
             Column(name="z", type="tinyint", comment="Zoom level of tile"),
-            *self.aggregation_columns,
+            *self.aggregated_columns,
         ]
 
         self.location_columns = [
@@ -181,11 +181,9 @@ class RasterTileService(TileService):
         ]
         self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}'\n)"
 
-        self.aggregation_name = "fastly_raster_aggregated_logs_v1"
-        self.aggregation_location = (
-            "s3://openstreetmap-fastly-raster-aggregated-logs/aggregated/v1/"
-        )
-        self.aggregation_comment = "Aggregated logs for tile.openstreetmap.org"
+        self.aggregated_name = "fastly_raster_aggregated_logs_v1"
+        self.aggregated_location = "s3://openstreetmap-fastly-raster-aggregated-logs/aggregated/v1/"
+        self.aggregated_comment = "Aggregated logs for tile.openstreetmap.org"
 
         self.location_name = "fastly_raster_location_logs_v4"
         self.location_location = "s3://openstreetmap-fastly-raster-location-logs/location/v4/"
@@ -235,16 +233,14 @@ class VectorTileService(TileService):
         ]
         self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}'\n)"
 
-        self.aggregation_name = "fastly_vector_aggregated_logs_v1"
-        self.aggregation_location = (
-            "s3://openstreetmap-fastly-vector-aggregated-logs/aggregated/v1/"
-        )
-        self.aggregation_comment = "Aggregated logs for vector.openstreetmap.org"
+        self.aggregated_name = "fastly_vector_aggregated_logs_v1"
+        self.aggregated_location = "s3://openstreetmap-fastly-vector-aggregated-logs/aggregated/v1/"
+        self.aggregated_comment = "Aggregated logs for vector.openstreetmap.org"
 
         # TODO: This could be moved to the TileService base class except for the tileset column
-        self.aggregation_columns = [
+        self.aggregated_columns = [
             Column(name="tileset", type="string", comment="Tileset served"),
-            *self.aggregation_columns,
+            *self.aggregated_columns,
         ]
 
         self.location_name = "fastly_vector_location_logs_v1"

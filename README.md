@@ -71,7 +71,7 @@ Perform log processing intended to be run hourly
 |--------------:|----------|------------|---------------|-------------|
 | `base`        |        ✓ |          ✓ |             ✓ |           ✓ |
 | `success`     |        ✓ |          ✓ |             ✓ |           ✓ |
-| `aggregation` |        ✓ |          ✓ | not impelemented | not impelemented |
+| `aggregated`  |        ✓ |          ✓ | not impelemented | not impelemented |
 
 ## Architecture
 

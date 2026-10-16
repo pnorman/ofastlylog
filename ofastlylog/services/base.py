@@ -79,22 +79,22 @@ class Service:
     schema: str = "logs"
     base_name: str
     success_name: str
-    aggregation_name: str
+    aggregated_name: str
 
     """List of columns to create"""
     base_columns: list[Column]
     success_columns: list[Column]
-    aggregation_columns: list[Column]
+    aggregated_columns: list[Column]
 
     """Table comment"""
     base_comment: str
     success_comment: str
-    aggregation_comment: str
+    aggregated_comment: str
 
     """S3 location"""
     base_location: str
     success_location: str
-    aggregation_location: str
+    aggregated_location: str
 
     success_filter_sql: str = "status IN (200, 206, 304)\n"
 
@@ -102,7 +102,7 @@ class Service:
         self, connection: pyathena.connection.Connection[pyathena.pandas.cursor.PandasCursor]
     ) -> None:
         self.connection = connection
-        # These columns are common to all aggregation tables
+        # These columns are common to all aggregated tables
         # They are not request specific (e.g. no ttfb) but may be device specific
         # (e.g. ua, ja4)
         # There's also coarse-level information about the location (pop, country, tz)
@@ -142,7 +142,7 @@ class Service:
             *common_columns,
         ]
 
-        self.aggregation_columns = [
+        self.aggregated_columns = [
             Column(
                 name="requests",
                 type="bigint",
@@ -192,12 +192,12 @@ class Service:
         with self.connection.cursor() as cursor:
             cursor.execute(self.create_success_table_sql())
 
-    def create_aggregation_table(self) -> None:
+    def create_aggregated_table(self) -> None:
         """
         Creates the table for aggregated logs from fastly
         """
         with self.connection.cursor() as cursor:
-            cursor.execute(self.create_aggregation_table_sql())
+            cursor.execute(self.create_aggregated_table_sql())
 
     def create_base_table_sql(self) -> str:
         # TODO: assert that self.location ends with /
@@ -249,18 +249,18 @@ class Service:
         )
         return sql
 
-    def create_aggregation_table_sql(self) -> str:
+    def create_aggregated_table_sql(self) -> str:
         sql = (
-            f"""CREATE EXTERNAL TABLE {self.schema}.{self.aggregation_name} (\n"""
-            + f"""{create_columns_sql(self.aggregation_columns)})\n"""
-            + f"""COMMENT '{self.aggregation_comment}'\n"""
+            f"""CREATE EXTERNAL TABLE {self.schema}.{self.aggregated_name} (\n"""
+            + f"""{create_columns_sql(self.aggregated_columns)})\n"""
+            + f"""COMMENT '{self.aggregated_comment}'\n"""
             + """PARTITIONED BY (year int, month int, day int, hour int)\n"""
             + """ROW FORMAT\n"""
             + """SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'\n"""
             + """STORED AS\n"""
             + """INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'\n"""
             + """OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'\n"""
-            + ymdh_tablestorage(self.aggregation_location)
+            + ymdh_tablestorage(self.aggregated_location)
         )
         return sql
 
@@ -269,6 +269,7 @@ class Service:
         Process the logs for a given hour and write to the success table
         """
         if not self.check_hour(self.base_name, date + datetime.timedelta(hours=1)):
+            print(f"{self.base_name}")
             raise ValueError(
                 f"No data more recent than {date + datetime.timedelta(hours=1)} has arrived."
                 + "The previous hour cannot be processed into success tables until the next "
@@ -285,23 +286,23 @@ class Service:
                 print(f"Processing {d} for {self.success_name}")
                 cursor.execute(self.process_hourly_success_sql(d), date_params(d))
 
-    def process_hourly_aggregation(self, date: datetime.datetime, hours: int) -> None:
+    def process_hourly_aggregated(self, date: datetime.datetime, hours: int) -> None:
         """
-        Process the logs for a given hour and write to the aggregation table
+        Process the logs for a given hour and write to the aggregated table
         """
         # No check is required for the next hour because under normal conditions
         # the success table will either be populated or not, not partially like
         # the base table can be.
 
-        missing = self.get_missing_partitions(self.aggregation_name, date, hours)
+        missing = self.get_missing_partitions(self.aggregated_name, date, hours)
         if missing == []:
             print(f"All data for the last {hours} hours is already aggregated")
             return
         with self.connection.cursor() as cursor:
             # TODO: Reuse variable above.
-            for d in self.get_missing_partitions(self.aggregation_name, date, hours):
-                print(f"Processing {d} for {self.aggregation_name}")
-                cursor.execute(self.process_hourly_aggregation_sql(d), date_params(d))
+            for d in self.get_missing_partitions(self.aggregated_name, date, hours):
+                print(f"Processing {d} for {self.aggregated_name}")
+                cursor.execute(self.process_hourly_aggregated_sql(d), date_params(d))
 
     def process_hourly_success_sql(self, date: datetime.datetime) -> str:
         select_columns: list[str] = []
@@ -332,10 +333,10 @@ class Service:
             + f"""AND {self.success_filter_sql}\n"""
         )
 
-    def process_hourly_aggregation_sql(self, date: datetime.datetime) -> str:
+    def process_hourly_aggregated_sql(self, date: datetime.datetime) -> str:
         columns: list[str] = []
         group_columns: list[str] = []
-        for col in self.aggregation_columns:
+        for col in self.aggregated_columns:
             if col.generation_sql is not None:
                 columns.append(f'''{col.generation_sql} AS "{col.name}"''')
             else:
@@ -345,7 +346,7 @@ class Service:
         columns += ["year", "month", "day", "hour"]
         group_columns += ["year", "month", "day", "hour"]
 
-        insert_columns = [col.name for col in self.aggregation_columns] + [
+        insert_columns = [col.name for col in self.aggregated_columns] + [
             "year",
             "month",
             "day",
@@ -353,7 +354,7 @@ class Service:
         ]
 
         return (
-            f"""INSERT INTO {self.schema}.{self.aggregation_name}\n"""
+            f"""INSERT INTO {self.schema}.{self.aggregated_name}\n"""
             + "(\n"
             + ",\n".join(insert_columns)
             + "\n)\n"
