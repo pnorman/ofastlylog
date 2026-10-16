@@ -179,7 +179,7 @@ class RasterTileService(TileService):
             Column(name="ratelimit", type="tinyint", comment="Rate limiting mode applied"),
             Column(name="totp", type="string", comment="OSM TOTP auth token"),
         ]
-        self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}\n')"
+        self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}'\n)"
 
         self.aggregation_name = "fastly_raster_aggregated_logs_v1"
         self.aggregation_location = (
@@ -187,8 +187,8 @@ class RasterTileService(TileService):
         )
         self.aggregation_comment = "Aggregated logs for tile.openstreetmap.org"
 
-        self.location_name = "fastly_raster_location_logs_v2"
-        self.location_location = "s3://openstreetmap-fastly-raster-location-logs/location/v2/"
+        self.location_name = "fastly_raster_location_logs_v4"
+        self.location_location = "s3://openstreetmap-fastly-raster-location-logs/location/v4/"
         self.location_comment = "Location logs for tile.openstreetmap.org"
 
 
@@ -233,7 +233,7 @@ class VectorTileService(TileService):
             ),
             *self.success_columns,
         ]
-        self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}\n')"
+        self.success_filter_sql += f"AND regexp_like(path, '{tile_regexp}'\n)"
 
         self.aggregation_name = "fastly_vector_aggregated_logs_v1"
         self.aggregation_location = (
